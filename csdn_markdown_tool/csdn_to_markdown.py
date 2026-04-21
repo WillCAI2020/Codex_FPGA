@@ -10,7 +10,7 @@ Optional:
     python csdn_to_markdown.py URL -o article.md --use-playwright
 
 Requirements:
-    pip install requests beautifulsoup4 lxml markdownify readability-lxml trafilatura
+    pip install requests beautifulsoup4 lxml markdownify
 
 Optional for dynamic rendering:
     pip install playwright
@@ -29,17 +29,18 @@ import requests
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
 
 def build_session(user_agent: Optional[str] = None, cookie_header: Optional[str] = None) -> requests.Session:
     session = requests.Session()
     session.headers.update(
         {
-            "User-Agent": user_agent
-            or (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": user_agent or UA,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Cache-Control": "no-cache",
@@ -50,6 +51,42 @@ def build_session(user_agent: Optional[str] = None, cookie_header: Optional[str]
     if cookie_header:
         session.headers["Cookie"] = cookie_header.strip()
     return session
+
+
+def normalize_code_text(text: str) -> str:
+    """Normalize code text while keeping token continuity."""
+    lines = text.splitlines()
+    short_ratio = (sum(1 for line in lines if len(line.strip()) <= 4) / len(lines)) if lines else 0
+
+    # Heuristic: if code is highly tokenized, rebuild by joining stripped tokens.
+    if lines and short_ratio > 0.35:
+        merged = " ".join(line.strip() for line in lines if line.strip())
+    else:
+        merged = text
+        merged = re.sub(r"\n\s*([\[\]{}();:,.=+\-*/<>|&!])\s*\n", r"\1", merged)
+        merged = re.sub(r"([A-Za-z_0-9])\n\s*([A-Za-z_0-9])", r"\1 \2", merged)
+
+    merged = re.sub(r"\s*([()\[\]{};,:])\s*", r"\1", merged)
+    merged = re.sub(r"([=+\-*/<>|&])\s*", r"\1 ", merged)
+    merged = re.sub(r"\s{2,}", " ", merged)
+    merged = re.sub(r"\n{3,}", "\n\n", merged)
+    return merged.strip()
+
+
+def detect_code_language(pre_tag) -> str:
+    classes = []
+    for tag in [pre_tag, pre_tag.find("code") if pre_tag else None]:
+        if tag is not None:
+            classes.extend(tag.get("class", []))
+
+    class_text = " ".join(classes)
+    match = re.search(r"language-([\w+-]+)", class_text)
+    if match:
+        return match.group(1)
+
+    if "verilog" in class_text.lower():
+        return "verilog"
+    return ""
 
 
 def fetch_html(url: str, cookies_file: Optional[Path] = None, timeout: int = 20) -> str:
@@ -72,14 +109,7 @@ def fetch_html_playwright(url: str, cookies_file: Optional[Path] = None, timeout
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            locale="zh-CN",
-        )
+        context = browser.new_context(user_agent=UA, locale="zh-CN")
         page = context.new_page()
         if cookie_header:
             page.set_extra_http_headers({"Cookie": cookie_header})
@@ -114,54 +144,39 @@ def extract_main_html(html: str) -> tuple[str, str]:
     if soup.title and soup.title.string:
         title = soup.title.string.strip()
 
-    # Common CSDN selectors first
-    candidates = [
-        "#content_views",
-        ".blog-content-box",
-        ".article_content",
-        ".htmledit_views",
-        "article",
-    ]
+    candidates = ["#content_views", ".blog-content-box", ".article_content", ".htmledit_views", "article"]
     main = None
     for sel in candidates:
         main = soup.select_one(sel)
         if main:
             break
 
-    # Fallback to readability-lxml
     if main is None:
-        try:
-            from readability import Document
+        main = soup.body or soup
 
-            doc = Document(html)
-            summary_html = doc.summary(html_partial=True)
-            title = doc.short_title() or title
-            main = BeautifulSoup(summary_html, "lxml")
-        except Exception:
-            main = soup.body or soup
-
-    # Remove obvious noise
     for tag in main.select(
         "script, style, iframe, aside, .recommend-box, .blog-footer-bottom, .hljs-button, .copyright-box, .article-info-box, .tag-link"
     ):
         tag.decompose()
 
-    # Normalize code blocks
     for pre in main.find_all("pre"):
-        classes = " ".join(pre.get("class", []))
         code = pre.find("code")
         text = code.get_text("\n") if code else pre.get_text("\n")
-
-        lang = ""
-        m = re.search(r"language-([\w+-]+)", classes)
-        if m:
-            lang = m.group(1)
+        text = normalize_code_text(text)
+        lang = detect_code_language(pre)
 
         fenced = BeautifulSoup("<pre></pre>", "lxml").pre
-        fenced.string = f"```{lang}\n{text.rstrip()}\n```"
+        fenced.string = f"```{lang}\n{text}\n```"
         pre.replace_with(fenced)
 
     return title, str(main)
+
+
+def clean_nested_fences(markdown: str) -> str:
+    # Remove accidental nested code fences produced after markdownify.
+    markdown = re.sub(r"```\s*\n```", "```", markdown)
+    markdown = re.sub(r"\n```\s*\n```", "\n```", markdown)
+    return markdown
 
 
 def html_to_markdown(title: str, main_html: str, source_url: str) -> str:
@@ -173,7 +188,7 @@ def html_to_markdown(title: str, main_html: str, source_url: str) -> str:
         strip=["span"],
     )
 
-    # Post-clean
+    body_md = clean_nested_fences(body_md)
     body_md = re.sub(r"\n{3,}", "\n\n", body_md).strip()
     body_md = body_md.replace("\\_", "_")
 
@@ -213,11 +228,7 @@ def main() -> int:
     cookies_file = Path(args.cookies) if args.cookies else None
 
     try:
-        if args.use_playwright:
-            html = fetch_html_playwright(args.url, cookies_file=cookies_file)
-        else:
-            html = fetch_html(args.url, cookies_file=cookies_file)
-
+        html = fetch_html_playwright(args.url, cookies_file=cookies_file) if args.use_playwright else fetch_html(args.url, cookies_file=cookies_file)
         title, main_html = extract_main_html(html)
         markdown = html_to_markdown(title, main_html, args.url)
     except Exception as primary_exc:
@@ -231,7 +242,7 @@ def main() -> int:
             print(f"ERROR: direct fetch failed ({primary_exc}); fallback failed ({fallback_exc})", file=sys.stderr)
             return 1
 
-    output_path.write_text(markdown, encoding="utf-8")
+    output_path.write_text(clean_nested_fences(markdown), encoding="utf-8")
     print(f"Saved markdown to: {output_path}")
     return 0
 
