@@ -20,7 +20,6 @@ Optional for dynamic rendering:
 from __future__ import annotations
 
 import argparse
-
 import re
 import sys
 from pathlib import Path
@@ -107,7 +106,6 @@ def fetch_markdown_via_jina(url: str, timeout: int = 30) -> str:
     return text + "\n"
 
 
-
 def extract_main_html(html: str) -> tuple[str, str]:
     """Return (title, cleaned_html)."""
     soup = BeautifulSoup(html, "lxml")
@@ -150,7 +148,17 @@ def extract_main_html(html: str) -> tuple[str, str]:
 
     # Normalize code blocks
     for pre in main.find_all("pre"):
+        classes = " ".join(pre.get("class", []))
+        code = pre.find("code")
+        text = code.get_text("\n") if code else pre.get_text("\n")
 
+        lang = ""
+        m = re.search(r"language-([\w+-]+)", classes)
+        if m:
+            lang = m.group(1)
+
+        fenced = BeautifulSoup("<pre></pre>", "lxml").pre
+        fenced.string = f"```{lang}\n{text.rstrip()}\n```"
         pre.replace_with(fenced)
 
     return title, str(main)
@@ -168,7 +176,6 @@ def html_to_markdown(title: str, main_html: str, source_url: str) -> str:
     # Post-clean
     body_md = re.sub(r"\n{3,}", "\n\n", body_md).strip()
     body_md = body_md.replace("\\_", "_")
-
 
     header = f"# {title}\n\n> 来源：{source_url}\n\n"
     return header + body_md + "\n"
