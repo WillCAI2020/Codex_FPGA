@@ -20,7 +20,7 @@ Optional for dynamic rendering:
 from __future__ import annotations
 
 import argparse
-import html
+
 import re
 import sys
 from pathlib import Path
@@ -107,20 +107,6 @@ def fetch_markdown_via_jina(url: str, timeout: int = 30) -> str:
     return text + "\n"
 
 
-def detect_code_language(pre_tag, code_tag) -> str:
-    classes = " ".join((pre_tag.get("class", []) if pre_tag else []) + (code_tag.get("class", []) if code_tag else []))
-    m = re.search(r"language-([\w+-]+)", classes)
-    return m.group(1) if m else ""
-
-
-def normalize_code_text(pre_tag) -> str:
-    code_tag = pre_tag.find("code")
-    target = code_tag or pre_tag
-    # Keep original line breaks while avoiding token-level line splitting caused by syntax-highlight spans.
-    text = target.get_text("", strip=False)
-    text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
-    return text.strip("\n")
-
 
 def extract_main_html(html: str) -> tuple[str, str]:
     """Return (title, cleaned_html)."""
@@ -164,12 +150,7 @@ def extract_main_html(html: str) -> tuple[str, str]:
 
     # Normalize code blocks
     for pre in main.find_all("pre"):
-        code = pre.find("code")
-        text = normalize_code_text(pre)
-        lang = detect_code_language(pre, code)
 
-        fenced = BeautifulSoup("<pre></pre>", "lxml").pre
-        fenced.string = f"```{lang}\n{text}\n```"
         pre.replace_with(fenced)
 
     return title, str(main)
@@ -187,8 +168,7 @@ def html_to_markdown(title: str, main_html: str, source_url: str) -> str:
     # Post-clean
     body_md = re.sub(r"\n{3,}", "\n\n", body_md).strip()
     body_md = body_md.replace("\\_", "_")
-    # Collapse nested fences produced by markdownify when <pre> already contains fenced code text.
-    body_md = re.sub(r"```\s*\n```([\w+-]*)\n(.*?)\n```\s*\n```", r"```\1\n\2\n```", body_md, flags=re.DOTALL)
+
 
     header = f"# {title}\n\n> 来源：{source_url}\n\n"
     return header + body_md + "\n"
