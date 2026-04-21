@@ -40,7 +40,11 @@ def build_session(user_agent: Optional[str] = None, cookie_header: Optional[str]
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Referer": "https://blog.csdn.net/",
         }
     )
     if cookie_header:
@@ -83,6 +87,23 @@ def fetch_html_playwright(url: str, cookies_file: Optional[Path] = None, timeout
         html = page.content()
         browser.close()
         return html
+
+
+def fetch_markdown_via_jina(url: str, timeout: int = 30) -> str:
+    """Fetch already-extracted markdown from r.jina.ai as a fallback for anti-bot pages."""
+    mirror_url = f"https://r.jina.ai/http://{url.removeprefix('https://').removeprefix('http://')}"
+    resp = requests.get(mirror_url, timeout=timeout)
+    resp.raise_for_status()
+
+    text = resp.text
+    marker = "Markdown Content:"
+    if marker in text:
+        text = text.split(marker, 1)[1].strip()
+
+    if not text:
+        raise ValueError("jina fallback returned empty content")
+
+    return text + "\n"
 
 
 def extract_main_html(html: str) -> tuple[str, str]:
@@ -160,12 +181,32 @@ def html_to_markdown(title: str, main_html: str, source_url: str) -> str:
     return header + body_md + "\n"
 
 
+def ensure_source_block(markdown: str, source_url: str) -> str:
+    if f"来源：{source_url}" in markdown:
+        return markdown
+
+    if markdown.lstrip().startswith("# "):
+        lines = markdown.splitlines()
+        if len(lines) >= 1:
+            lines.insert(1, "")
+            lines.insert(2, f"> 来源：{source_url}")
+            lines.insert(3, "")
+            return "\n".join(lines).strip() + "\n"
+
+    return f"> 来源：{source_url}\n\n{markdown.strip()}\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Convert a CSDN article to Markdown")
     parser.add_argument("url", help="Article URL")
     parser.add_argument("-o", "--output", required=True, help="Output markdown file")
     parser.add_argument("--cookies", help="Path to a text file containing the Cookie header")
     parser.add_argument("--use-playwright", action="store_true", help="Render page with Playwright before extraction")
+    parser.add_argument(
+        "--no-jina-fallback",
+        action="store_true",
+        help="Disable fallback to r.jina.ai when direct fetching is blocked",
+    )
     args = parser.parse_args()
 
     output_path = Path(args.output)
@@ -179,12 +220,20 @@ def main() -> int:
 
         title, main_html = extract_main_html(html)
         markdown = html_to_markdown(title, main_html, args.url)
-        output_path.write_text(markdown, encoding="utf-8")
-        print(f"Saved markdown to: {output_path}")
-        return 0
-    except Exception as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
+    except Exception as primary_exc:
+        if args.no_jina_fallback:
+            print(f"ERROR: {primary_exc}", file=sys.stderr)
+            return 1
+        print(f"Direct fetch failed ({primary_exc}), trying r.jina.ai fallback...", file=sys.stderr)
+        try:
+            markdown = ensure_source_block(fetch_markdown_via_jina(args.url), args.url)
+        except Exception as fallback_exc:
+            print(f"ERROR: direct fetch failed ({primary_exc}); fallback failed ({fallback_exc})", file=sys.stderr)
+            return 1
+
+    output_path.write_text(markdown, encoding="utf-8")
+    print(f"Saved markdown to: {output_path}")
+    return 0
 
 
 if __name__ == "__main__":
