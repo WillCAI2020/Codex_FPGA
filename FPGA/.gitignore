@@ -1,0 +1,12 @@
+# Build/runtime byproducts
+simv
+
+# Generated waveform/log artifacts (do not commit)
+*.vcd
+*.fst
+*.log
+*.png
+*.xwd
+
+# Optional output folder
+out/
