@@ -1,0 +1,27 @@
+VCD info: dumpfile adc128s102.vcd opened for output.
+[DONE 0] ret_ch=0 data=0x000 expected_ch=0 expected_data=0x000
+[DONE 1] ret_ch=1 data=0x124 expected_ch=1 expected_data=0x124
+[DONE 2] ret_ch=4 data=0x46a expected_ch=4 expected_data=0x46a
+[DONE 3] ret_ch=7 data=0x7b0 expected_ch=7 expected_data=0x7b0
+[DONE 4] ret_ch=2 data=0x26e expected_ch=2 expected_data=0x26e
+[DONE 5] ret_ch=5 data=0x5b4 expected_ch=5 expected_data=0x5b4
+[DONE 6] ret_ch=0 data=0x072 expected_ch=0 expected_data=0x072
+[DONE 7] ret_ch=3 data=0x3b8 expected_ch=3 expected_data=0x3b8
+[DONE 8] ret_ch=6 data=0x6fe expected_ch=6 expected_data=0x6fe
+[DONE 9] ret_ch=1 data=0x1bc expected_ch=1 expected_data=0x1bc
+[DONE 10] ret_ch=4 data=0x502 expected_ch=4 expected_data=0x502
+[DONE 11] ret_ch=7 data=0x848 expected_ch=7 expected_data=0x848
+[DONE 12] ret_ch=2 data=0x306 expected_ch=2 expected_data=0x306
+[DONE 13] ret_ch=5 data=0x64c expected_ch=5 expected_data=0x64c
+[DONE 14] ret_ch=0 data=0x10a expected_ch=0 expected_data=0x10a
+[DONE 15] ret_ch=3 data=0x450 expected_ch=3 expected_data=0x450
+[DONE 16] ret_ch=6 data=0x796 expected_ch=6 expected_data=0x796
+[DONE 17] ret_ch=1 data=0x254 expected_ch=1 expected_data=0x254
+[DONE 18] ret_ch=4 data=0x59a expected_ch=4 expected_data=0x59a
+[DONE 19] ret_ch=7 data=0x8e0 expected_ch=7 expected_data=0x8e0
+[DONE 20] ret_ch=2 data=0x39e expected_ch=2 expected_data=0x39e
+[DONE 21] ret_ch=5 data=0x6e4 expected_ch=5 expected_data=0x6e4
+[DONE 22] ret_ch=0 data=0x1a2 expected_ch=0 expected_data=0x1a2
+[DONE 23] ret_ch=3 data=0x4e8 expected_ch=3 expected_data=0x4e8
+TB PASS: 25 frames verified
+tb_b128s102rh_core.v:122: $finish called at 79110000 (1ps)
