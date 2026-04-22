@@ -20,7 +20,8 @@ module tb_counter;
         rst_n = 1'b0;
         #12;
         rst_n = 1'b1;
-        #100;
+        // Extend simulation so rollover (15 -> 0) is observable.
+        #240;
         $finish;
     end
 

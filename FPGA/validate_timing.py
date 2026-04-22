@@ -30,4 +30,9 @@ post = [(t, c) for t, r, c in records if r == 1]
 for (_, c0), (t1, c1) in zip(post, post[1:]):
     assert c1 == (c0 + 1) % 16, f'Count increment mismatch at {t1}ns: {c0}->{c1}'
 
-print(f'Timing validation passed using {log_path}: counter increments every 10ns after reset release.')
+# Ensure rollover is present in the captured window.
+assert any(c0 == 15 and c1 == 0 for (_, c0), (_, c1) in zip(post, post[1:])), (
+    'Rollover 15->0 not observed; simulation window may be too short.'
+)
+
+print(f'Timing validation passed using {log_path}: counter increments every 10ns and rollover is observed.')

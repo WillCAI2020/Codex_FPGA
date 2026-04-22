@@ -10,3 +10,4 @@ GTKWAVE | Executing Tcl script 'gtkwave.tcl'
 GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
 
 GTKWAVE | Could not initialize 'counter.fst'.
+GTKWAVE | invalid command name "3:0"
