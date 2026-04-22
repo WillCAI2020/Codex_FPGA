@@ -6,3 +6,4 @@ FSTLOAD | Built 4 signals and 2 aliases.
 FSTLOAD | Building facility hierarchy tree.
 FSTLOAD | Sorting facility hierarchy tree.
 GTKWAVE | Executing Tcl script 'gtkwave.tcl'
+GTKWAVE TCL selected signals: tb_counter.clk {tb_counter.count[3:0]} tb_counter.rst_n
